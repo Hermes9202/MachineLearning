@@ -1,0 +1,1193 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Aug 15 18:20:41 2018
+
+@author: Hermy
+"""
+
+# -*- coding: utf-8 -*-
+"""
+
+1- Import libraries and Import the Train/Test Data
+2- We clean the data and transform it the way we need it
+3- We define the variables that will afterwards be used in the loops
+4- We are able to run these models and compare the results: RandomForrest, XGBoost, LogisticRegression
+Steps while running:
+5- Calculating Pearson Correlation Coefficients or Running xGBoost Model or PCA to check the Important / correlated fields only and leave them
+6- To avoid Multi coliniearity we check which features have high correlation between each other and drop part of them
+7- We normalize data whenever necessary
+8- We define the independent / dependent variables: X and y (target variable).
+9- We run all the models and calculate accuracy/precission/recall scores
+10- Append all results form the model and export them for comparison
+
+#NOTE FOR THE READER! -> At that time I didn't need to define a function to do everything at once, I was running it 'step-by-step' and only ran the whole thing when comparing it at the end, so it was more comfortable this way. + I was still a NOOB in 2018
+
+#To See all outputs
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+#data analysis libraries 
+import numpy as np
+import pandas as pd
+
+#visualization libraries
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+
+#for Charts
+from sklearn.metrics import f1_score
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
+
+#Normalisations
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestClassifier
+
+#ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
+
+#Extra Plotting
+from sklearn.externals.six import StringIO  
+from IPython.display import Image  
+from sklearn.tree import export_graphviz
+import pydotplus
+
+#Linear Models     
+import seaborn as seabornInstance 
+from sklearn.model_selection import train_test_split 
+
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import ElasticNet
+
+from sklearn.linear_model import LogisticRegression
+
+from sklearn import cross_validation
+
+from sklearn import metrics
+%matplotlib inline
+
+#Importing XGBoost
+import xgboost as xgb
+
+#Importing for Heatmap
+import seaborn
+
+#Extra things
+from scipy import stats
+import math
+import re
+import random
+
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import SelectKBest,f_regression
+from sklearn.decomposition import PCA
+
+from datetime import date
+from datetime import datetime
+from pandas import ExcelWriter
+
+
+/* ----------------------- */
+
+Titanic_Train = pd.read_csv(‘D:/train.CSV', header=0) 
+Titanic_Test  = pd.read_csv(‘D:/test.CSV', header=0) 
+Titanic_Train.head()
+
+/* ------------ */
+
+#Merging and creating extra varriable so that i can do similar Operations on them
+Titanic_Train['Train'] = 1
+Titanic_Test['Train'] = 0
+
+#Appending Tables
+TitanicFull = Titanic_Train.append(Titanic_Test)
+
+#Some Feature Engineering, Creating Missing values and e.t.c
+def Equal(Value):
+    if pd.isna(Value) == True:
+        return 1 
+    else:
+        return 0
+    
+TitanicFull['Age_Missing']   = TitanicFull['Age'].apply(Equal)
+TitanicFull['Cabin_Missing'] = TitanicFull['Cabin'].apply(Equal)
+
+# try:
+def funcA(Value):
+    if 'A' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcB(Value):
+    if 'B' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcC(Value):
+    if 'C' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcD(Value):
+    if 'D' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcE(Value):
+    if 'E' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcF(Value):
+    if 'F' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcG(Value):
+    if 'G' in (Value):
+        return 1 
+    else:
+        return 0
+    
+def funcT(Value):
+    if 'T' in (Value):
+        return 1 
+    else:
+        return 0
+    
+TitanicFull['Cabin']   = TitanicFull['Cabin'].fillna('0')
+
+TitanicFull['Cabin_A_Me'] = TitanicFull['Cabin'].apply(funcA)
+TitanicFull['Cabin_B_Me'] = TitanicFull['Cabin'].apply(funcB)
+TitanicFull['Cabin_C_Me'] = TitanicFull['Cabin'].apply(funcC)
+TitanicFull['Cabin_D_Me'] = TitanicFull['Cabin'].apply(funcD)
+TitanicFull['Cabin_E_Me'] = TitanicFull['Cabin'].apply(funcE)
+TitanicFull['Cabin_F_Me'] = TitanicFull['Cabin'].apply(funcF)
+TitanicFull['Cabin_G_Me'] = TitanicFull['Cabin'].apply(funcG)
+TitanicFull['Cabin_T_Me'] = TitanicFull['Cabin'].apply(funcT)
+
+#Creating FirstName Variable
+# re.compile("{'model__max_depth': ").sub("", str(Model_Search.best_params_)).split(", ")
+
+# NewSeries = TitanicFull['Name'].str.split(',', expand=True)
+TitanicFull = pd.concat([TitanicFull, TitanicFull['Name'].str.split(',', expand=True)], axis=1)
+TitanicFull = TitanicFull.rename(columns={0: "FirstName", 1: "RestName"})
+TitanicFull = pd.concat([TitanicFull, TitanicFull["RestName"].str.split('.', expand=True)], axis=1)
+TitanicFull = TitanicFull.rename(columns={0: "MrMrs"})
+
+#Dropping Variables which I don’t need
+TitanicFull = TitanicFull.drop([1,2,"RestName","Name"], axis=1)
+TitanicFull.head()
+
+#Checking which variables are considered as categorical variables.
+names = list(TitanicFull.select_dtypes(include='object').columns.values)
+
+#Replacing Some parts of the categorical variables so that we can change it to numerical ones
+for name in names:
+    TitanicFull[name]=TitanicFull[name].astype(str)
+    TitanicFull[name]=[col.replace(',', '') for col in TitanicFull[name]]
+    TitanicFull[name]=[col.replace('%', '') for col in TitanicFull[name]]
+    TitanicFull[name]=[col.replace('$', '') for col in TitanicFull[name]]
+    TitanicFull[name]=[col.replace('(', '') for col in TitanicFull[name]]
+    TitanicFull[name]=[col.replace(')', '') for col in TitanicFull[name]]
+    TitanicFull[name]=TitanicFull[name].astype('float64', errors ='ignore')
+    
+#Filling All empty variables with 0 s
+TitanicFull = TitanicFull.fillna('0')
+
+TitanicFull['Age'] = TitanicFull['Age'].astype('int')
+TitanicFull['Fare'] = TitanicFull['Fare'].astype('int')
+TitanicFull['Parch'] = TitanicFull['Parch'].astype('int')
+TitanicFull['PassengerId'] = TitanicFull['PassengerId'].astype('int')
+TitanicFull['Pclass'] = TitanicFull['Pclass'].astype('int')
+TitanicFull['Survived'] = TitanicFull['Survived'].astype('int')
+TitanicFull['SibSp'] = TitanicFull['SibSp'].astype('int')
+
+
+# Add hoc encoding, Changing categorical variables 
+TitanicFull = pd.get_dummies(TitanicFull)
+
+# Creating Test and Train Sets
+Train_Set = TitanicFull[TitanicFull["Train"] == 1] 
+Test_Set  = TitanicFull[TitanicFull["Train"] == 0] 
+
+# Dropping Survived variable from test because its empty, and Train variable in both because we dont need it
+# Train_Set = Train_Set.drop(["Train"], axis=1)
+Test_Set = Test_Set.drop(["Survived"], axis=1)
+
+Train_Set.shape
+Test_Set.shape
+
+Train_Set.head()
+
+writer = ExcelWriter(f"D:\Titanic_test.xlsx")
+TitanicFull.to_excel(writer,'CompleteOutput')
+writer.save()
+
+#Running the Correlations between All variables
+Correlations = Train_Set.corr()
+
+# def NewDataModel(TargetList, 
+#                        ProductDivision,
+#                        Pearson_Inpu,
+
+# NumVarsXGB_Inpu
+
+#                        MultiCol_Inpu,
+
+# PlotHeatMap
+
+#                        Z_Scoring_Inpu,
+#                        LogNumber_Inpu,
+# #                        LogTarget_Inpu,
+#                        LogData_Inpu,
+#                        Score,
+#                        Models_Inpu,
+#                        FeaturePick_Inpu,
+
+# KnumFeatures_Inpu
+
+#                        CrossVal,
+#                        Num_Estimators,
+#                        Max_Depth
+#                       ):
+
+NewData = Train_Set
+
+TargetList = (
+              'Survived',
+              )
+
+#Variables to Drop
+DelVars =  [
+            'Train',
+            'Survived'
+            ]
+
+InitialCut_Inpu = ['Pearson','PCA'] #'XGBoost','PCA'
+Pearson_Inpu = [0.2]       #Initial Pearson Correlation Cut
+NumVarsXGB_Inpu = 150            #How many Top features to leave from each iterated max depth, total 3 iters
+
+MultiCol_Inpu  = [0.95]       #Variable with higher Pearson Corr Value then Input - dropped
+PlotHeatMap    = 'NO'             #Plots Heatmap of variables after multicol deletion, 'YES' for it to work
+Z_Scoring_Inpu = [3]         #Outlier in Target higher then Input Z_Score will be deleted
+LogNumber_Inpu = [4]         #Feature + LogNumber for Logging
+#                                          LogTarget_Inpu = ['NO','YES'],     #YES,NO
+LogData_Inpu = ['YES'] # 'YES','NO','MinMax Norm' How to adjust scales for X Features
+
+FeaturePick_Inpu = ["SelectKBest", "RandomSearch"]    #SelectKBest  "RandomSearch"
+KnumFeatures_Inpu = 5               #with How many features to jump each time
+Models_Inpu = ['RandomForrest','LogisticRegression']  #RandomForrest, XGBoost, LogisticRegression
+
+CrossVal = 5                            #Number of Folds when Cross Validating
+Num_Estimators = np.arange(10,60,50)   #For RandomForrest
+Bootstrap = ['True','False']            #For RandomForrest
+Max_Depth = np.arange(3,7,4)            #For RandomForrest
+#                                          reg_lambda =                         #For XGBREG
+#                                          gamma =                              #For XGBREG
+#                                          eta = #For XGBREG
+
+Score = "accuracy"       #Score to Improve for GridSearchCV
+
+#Creating Empty Dataset For Results
+Results = pd.DataFrame(columns=['Product', 'ProductDivision', 'InitialCut','LogData', 
+#                                     'LogTarget', 
+                                'LogNumber', 
+                                'Init Pearson','MultiCol','Z_scorecut',
+                                'MaxTargetValue', 'MinTargetValue',
+                                'Shape_Before','Shape_After',
+#                                 'Skew_Bef','Skew_Aft',
+                                'Model', 'FeaturePick', 'CrossValidated','SelectedPars', 'Metric',
+#                                 'Metric_Score_Log',
+                                'New_Features', 'Metric_Score'])
+
+ResultsAll = pd.DataFrame(columns=[
+                                   'trn Accuracy Score',
+                                   'trn Precision Score',
+                                   'trn Recall Score',
+
+                                   'tst Accuracy Score',
+                                   'tst Precision Score',
+                                   'tst Recall Score',
+    
+                                   'Iter'
+                                  ])
+
+#Creating Iteration Dictionary
+IterDic = {}
+    
+#Creating Iteration Variable
+Iter = 0
+
+#Replacing Some parts of the categorical variables so that we can change it to numerical ones
+for Target in TargetList:
+    
+#     print("Modelling -",Product,"\n")
+#     print("Pearson -",Pearson,"\n")
+#     print("MultiCol -",MultiCol,"\n")
+#     print("Z_Scoring -",Z_Scoring,"\n")
+#     print("LogNumber -",LogNumber,"\n")
+#     print("LogData -",LogData,"\n")
+#     print("RunModel -",RunModel,"\n")
+#     print("FeaturePick -",FeaturePick,"\n")
+
+    #     for Pearson in [0.3,0.2]:
+    for InitialCut in InitialCut_Inpu: 
+        
+        #Defining XGB Features
+        XGBFeats = {}
+
+        if InitialCut == 'Pearson':
+            
+            for Pearson in Pearson_Inpu:   
+        #         for MultiCol in [0.8, 0.9, 0.95]:
+
+                print('Running Initial Cut -', 'with Pearson',"\n")
+
+                Data = Correlations[[Target]]
+                Data['Abs_Pearson'] = abs(Data[Target])
+
+                # Sorting the Data with Abs_Pearson
+                Data = Data.sort_values('Abs_Pearson', ascending=False)
+
+                # Renaming Name of the Index into Features
+                Data.index.name = 'Features'
+
+                print("Pearson Correlation All Table Cut - ",Pearson)
+
+                # Leaving only Features greater then Pearson
+                DataNew = Data[Data['Abs_Pearson'] >= Pearson]
+
+                # Deleting from list containing any of the Future Variables
+                NewList = [ x for x in list(DataNew.index) 
+                           if "Next" not in x ]
+
+                NewList = [x for x in NewList if x not in DelVars]
+                Newerlist = [x for x in NewList if x not in TargetList]
+                
+#               Newerlist
+
+        elif InitialCut == 'XGBoost':
+            
+            # Deleting Unnecessary Variables
+            TempData_init = NewData.drop(DelVars, axis=1)
+
+            columnsAll = TempData_init.columns.tolist()
+
+            # Deleting from list containing any of the Future Variables
+            columnsAll = [ x for x in columnsAll 
+                           if "Next" not in x ]
+
+            TempData_init = TempData_init[columnsAll]
+
+            X_init = TempData_init
+            y_init = NewData[Target]
+
+            print('Running Initial Cut -', 'with XGB Reg',"\n")
+
+            print('Creating Empty Dataset for XGB Important Features')
+            XGBSelection = pd.DataFrame(columns=['0_x','0_y','Max_Dep'])
+
+            X_train_init, X_test_init, y_train_init, y_test_init = train_test_split(X_init, y_init, test_size=0.2, random_state=0)
+
+            for dep in [5,10,20]:
+
+                print('Running Depth -', dep,"\n")
+
+#                 Var_dep_estimator = '_' + str(dep) + '_' + str(estimator)
+
+#                 XGBClassifier()
+                xgb_model_init = xgb.XGBClassifier(  
+                                                  max_depth=dep, n_estimators=100
+#                                                 , objective='reg:squarederror'
+                                                  )
+
+                xgb_model_init.fit(X_train_init, y_train_init)
+
+                y_pred_train_init = xgb_model_init.predict(X_train_init)
+                y_pred_test_init = xgb_model_init.predict(X_test_init)
+
+                print("Test Score ", accuracy_score(y_test_init,y_pred_test_init))
+                print("Train Score ", accuracy_score(y_train_init,y_pred_train_init))
+
+                print("Taking Out importances from the Model")
+                #importances 
+                importances = xgb_model_init.feature_importances_
+                indices = np.argsort(importances)[::-1]
+
+                column_names = list(X_train_init.columns.values)
+
+                #Creating two lists, for importance variable names and importance columns
+                a=[]
+                b=[]
+                for i in indices:
+                    a.append(importances[i])
+                    b.append(column_names[i])
+
+                df_adata = pd.DataFrame(np.mat(a).reshape(1, int(np.prod(np.mat(a).shape) / 1)).T)
+                df_bdata = pd.DataFrame(np.mat(b).reshape(1, int(np.prod(np.mat(b).shape) / 1)).T)
+
+                ImportancesOut = pd.merge(df_bdata, df_adata, left_index=True, right_index=True)
+
+                #Leaving only Top Important Variables, 100 in this case
+                ImportXGB = ImportancesOut.iloc[:NumVarsXGB_Inpu,] 
+                ImportXGB['Max_Dep'] = dep
+
+                XGBSelection = XGBSelection.append(ImportXGB)
+
+            #Deleting Duplicates from Appended Table, 0_x is the variable with names of features
+            Nodups = XGBSelection.drop_duplicates(subset='0_x', keep='first', inplace=False)
+
+            #Creating the final list for further Steps
+            Newerlist = list(Nodups['0_x'])
+
+            #Assigning a variable, so that afterwards I can Extract Important Features if I  want
+            XGBFeats["Feats_{0}".format(Target)] = Newerlist
+
+            print("List Generated")
+            
+        elif InitialCut == "PCA":
+
+#             pca = PCA(0.99)
+            pca = PCA(25)
+            
+            # Deleting Unnecessary Variables
+            TempData_init = NewData.drop(DelVars, axis=1)
+
+            columnsAll = TempData_init.columns.tolist()
+
+
+            # Deleting from list containing any of the Future Variables
+            columnsAll = [ x for x in columnsAll 
+                           if "Next" not in x ]
+
+            TempData_init = TempData_init[columnsAll]
+
+            X_init = TempData_init
+            y_PCA = NewData[Target]
+            
+            pca.fit(X_init)
+            pca.n_components_
+
+            X_PCA = pca.transform(X_init)
+
+            # Changing numpy.ndarray back to Dataframe so that I can use it Afterwards
+            X_PCA = pd.DataFrame(data=X_PCA,
+                             index=np.arange(1, len(X_PCA) + 1),
+                             columns=np.arange(1, pca.n_components_ + 1))
+            
+            X_PCA = X_PCA.fillna(0)
+            y_PCA = y_PCA.fillna(0)
+
+            X_PCA
+            
+    #Continuing the Process
+        for MultiCol in MultiCol_Inpu:
+
+            for Z_Scoring in Z_Scoring_Inpu:
+
+                for LogNumber in LogNumber_Inpu:
+
+                    for LogData in LogData_Inpu:
+
+                        for RunModel in Models_Inpu:
+
+                            for FeaturePick in FeaturePick_Inpu:
+
+                                # Assigning New Value to I
+                                Iter = Iter + 1
+                                
+                                #To avoid Multi coliniearity we check which features have high correlation between each other and drop part of them
+                                #Creating a df with only those features
+                                tempData = NewData[Newerlist]
+
+                                                                            #Deleting Correlated Features
+
+                                # Creating correlation matrix with absolute values
+                                corr_df_abs = tempData.corr().abs()
+
+                                # Select upper triangle of correlation matrix
+                                upper = corr_df_abs.where(np.triu(np.ones(corr_df_abs.shape), k=1).astype(np.bool))
+
+
+                                # Find index of feature columns with correlation greater than MultiCol
+                                to_drop = [column for column in upper.columns if any(upper[column] > MultiCol)]
+                                print("Variables to drop - ", to_drop)
+
+                                #Dropping features 
+                                tempData = tempData.drop(tempData[to_drop], axis=1)
+
+
+                                                                            #Plotting Reduced heatmap
+                                if PlotHeatMap == 'YES':
+
+                                    #Plotting the multicolliniarity chart
+                                    corr_df = tempData.corr()
+                                    print("----------- Feature Correlation Plot - Clean ------------- ")
+
+                                    # creating a mask with lower triangle of Matrix
+                                    mask = np.zeros_like(corr_df)
+                                    mask[np.triu_indices_from(mask)] = True
+
+                                    # Adjusting the size
+                                    fig, ax = plt.subplots(figsize=(20,20))         # Sample figsize in inches
+
+                                    #creating the heatmap
+                                    seaborn.heatmap(corr_df, cmap='RdYlGn_r', vmax=1.0, vmin=-1.0, mask=mask, linewidths=0.5, ax=ax)
+
+                                    #plot the Outcomes
+                                    plt.yticks(rotation=0)
+                                    plt.xticks(rotation=90)
+                                    plt.show()
+
+
+                                #Now Taking the new features 
+                                Newestlist = tempData.columns.tolist()
+                                print("After Multicol Feature Deletion, Features are -","\n",Newestlist,"\n")
+
+                                #Appending TargetName in the List
+                                Newestlist.append(Target)
+
+                                #Leaving Only Desired Variables from the Table
+                                print("Before MultiCol Feature Deletion Shape was - ", NewData[Newerlist].shape, "\n",
+                                      "After MultiCol Feature Deletion Shape is - ", NewData[Newestlist].shape, "\n",)
+                                WorkingData = NewData[Newestlist]
+
+                                # Filling Missing values with 0s - there shouldn't be any, but still..
+                                WorkingData = WorkingData.fillna(0)
+
+#                                 # Deleting Minus Profits - can be used for all the Profits except Interchanges, where we have lot of minus profits
+#                                 WorkingData = WorkingData[WorkingData[Target] >= 0]
+
+                                WorkingData.head()
+                                WorkingData.shape
+
+                                #Making Sure all the outliers are deleted
+                                from scipy.stats import iqr
+                                iqr = iqr(WorkingData[Target], axis=0)
+                                print("IQR is",iqr)
+
+                                #How much of the Outliers to delete, using Z_score (std away from Mean)
+
+                                WorkingData['z_score']=stats.zscore(WorkingData[Target])
+
+                                print("Deleting Outliers, Z_Score - ",Z_Scoring)
+
+                                #Deleting less then Z Score
+                                WorkingData = WorkingData[WorkingData["z_score"].abs() <= Z_Scoring]
+                                print('Reduced by Z-score Outliers', WorkingData.shape)
+
+                                MaxTargetValue = max(WorkingData[Target])
+                                MinTargetValue = min(WorkingData[Target])
+                                print('MaxTargetValue', MaxTargetValue, "\n", 'MinTargetValue', MinTargetValue)
+
+                                                                    #Plotting Histogram Initial
+#                                 print('Histogram Before Log transform',"\n")
+#                                 num_bins = 100
+#                                 n, bins, patches = plt.hist(WorkingData[Target], num_bins, facecolor='blue', alpha=0.5)
+#                                 plt.show()
+
+                                #Dropping Z Score
+                                WorkingData = WorkingData.drop(["z_score"], axis=1);
+
+                                #Creatin Final Target Variable, in this case No change in the target, was logging it and stuff before
+                                WorkingData['TargetFinal'] = WorkingData[Target]
+
+                                #Dropping Previouse Target variable
+                                WorkingData = WorkingData.drop([Target], axis=1);
+
+                                print("Running Models...")
+
+                                                                        # Defining X and Y
+                            
+                                # Making sure that if we Choose PCA as a Feature selector Data is not Scaled
+                                if InitialCut == 'PCA':
+                                    LogData = 'NO'
+                            
+                                if LogData == 'YES':
+                                    #Creating list of vars without TargetLog
+                                    list_of_vars = WorkingData.drop(['TargetFinal'], axis=1).columns.tolist()
+
+                                    #Assigning X, logTransforming Every variable with sqrt((x^2)+LogNumber)
+                                    X = WorkingData[list_of_vars].applymap(lambda x: np.log(math.sqrt((x**2)+LogNumber)))
+
+                                    #Renaming columns
+                                    X.columns = 'log_' + X.columns
+
+                                    #shifting the index
+                                    X.index = X.index + 1
+
+                                    #Assigning y
+                                    y = WorkingData['TargetFinal']
+
+                                elif LogData == 'MinMax Norm':
+
+                                    X_tmp_1 = WorkingData.drop(['TargetFinal'], axis=1);
+                                    y = WorkingData['TargetFinal']
+
+                                    scaler = MinMaxScaler(feature_range = (0,5))
+
+                                    scaler.fit(X_tmp_1)
+                                    X_tmp = scaler.transform(X_tmp_1)
+
+                                    # Changing numpy.ndarray back to Dataframe so that I can use it Afterwards
+                                    X = pd.DataFrame(data=X_tmp,
+                                                     index=np.arange(1, len(X_tmp_1)+1),
+                                                     columns=np.arange(1, len(X_tmp_1.columns.tolist())+1))
+
+                                    # As the Created Dataframe has 1,2,3,... etc as Names of variables we assign the names from the prev Dataframe
+                                    X.columns = X_tmp_1.columns.tolist()
+
+                                else:
+                                    X = WorkingData.drop(['TargetFinal'], axis=1);
+                                    y = WorkingData['TargetFinal']
+                                    
+                                if InitialCut == 'PCA':
+                                    
+                                    X = X_PCA
+                                    y = y_PCA
+
+                                OutputTable = {
+                                              'Last_X': X,
+                                              'Last_y': y,
+                                              }
+                                
+                                                        
+                                
+#                                 Random_Forrest = RandomForestClassifier(n_estimators = n_estim, 
+# #                                                         max_depth = Max_Dep,
+#                                                     bootstrap = Boots)
+
+#                                 Random_Forrest.fit(X_train, y_train)
+
+#                                 y_pred_Forr = Random_Forrest.predict(X_test)
+#                                 y_pred_tr_Forr = Random_Forrest.predict(X_train)
+
+#                                 ScoreOutput = Random_Forrest.score(X_test, y_test)
+
+#                                 # Model Accuracy, how often is the classifier correct?
+#                                 AccuScore = metrics.accuracy_score(y_test, y_pred_Forr)
+
+#                                 AccuScoreTr = metrics.accuracy_score(y_train, y_pred_tr_Forr)
+
+#                                 print("AccuScore Train:", AccuScoreTr, "AccuScore Test:", AccuScore, 'Test Split:', testsize, 'n_estimators:', n_estim, 
+#                                       "Bootstrap:", Boots)
+                                
+                                
+                                                                        # Defining Models
+                                                                        #Random Forrest
+                                
+                                if FeaturePick == "SelectKBest":
+
+                                    #Counting number of features so that we can input in SelectKBest
+                                    selectK = np.arange(1,len(X.columns.tolist()),KnumFeatures_Inpu).tolist()
+
+                                    #Appending "all", so that its [1,3,5...,"all"]
+                                    selectK.append("all")
+
+                                    if RunModel == "RandomForrest":
+
+                                        print("Running - ",RunModel,"\n")
+
+                                        #Creating a Pipeline for the Model
+                                        pipeline = Pipeline(
+                                            [
+                                             ('selector',SelectKBest(f_regression)),
+                                             ('model',RandomForestClassifier())
+                                            ]
+                                        )
+
+                                        # Gridsearch the Magnificient 
+                                        Model_Search = GridSearchCV(
+                                            estimator = pipeline,
+                                            param_grid = {
+                                          'selector__k':selectK, 
+                                          'model__n_estimators':Num_Estimators
+#                                           'model__Bootstrap':Bootstrap,  
+                                         },
+                                            n_jobs=-1,
+                                            scoring=Score,
+    #                                             refit=Refit,
+                                            cv=CrossVal,
+                                            verbose=3
+                                        )
+
+                                    elif RunModel == "XGBoost":
+
+                                        print("Running - ",RunModel,"\n")
+                                        
+                                        #Creating a Pipeline for the Model
+                                        pipeline = Pipeline(
+                                            [
+                                             ('selector',SelectKBest(f_regression)),
+                                             ('model', xgb.XGBClassifier())
+                                            ]
+                                        )
+
+                                        Model_Search = GridSearchCV(
+                                            estimator = pipeline,
+                                            param_grid = {
+                                          'selector__k':selectK, 
+                                          'model__n_estimators':Num_Estimators,
+                                          'model__max_depth':Max_Depth,  
+                                         },
+                                            n_jobs=-1,
+                                            scoring=Score,
+    #                                             refit=Refit,
+                                            cv=CrossVal,
+                                            verbose=3
+                                        )
+                                        
+                                    elif RunModel == "LogisticRegression":
+
+                                        print("Running - ",RunModel,"\n")
+                                        
+                                        #Creating a Pipeline for the Model
+                                        pipeline = Pipeline(
+                                            [
+                                             ('selector', SelectKBest(f_regression)),
+                                             ('model', LogisticRegression())
+                                            ]
+                                        )
+
+                                        Model_Search = GridSearchCV(
+                                            estimator = pipeline,
+                                            param_grid = {
+                                          'selector__k':selectK, 
+#                                           'model__n_estimators':Num_Estimators,
+#                                           'model__max_depth':Max_Depth,  
+                                         },
+                                            n_jobs=-1,
+                                            scoring=Score,
+    #                                             refit=Refit,
+                                            cv=CrossVal,
+                                            verbose=3
+                                        )
+                                        
+
+                                                                    #Fitting the Model for SelectK Method
+                                    Model_Search.fit(X,y)
+
+                                    #Taking out the Score from Gridsearch
+                                    ResultMetric = Model_Search.best_score_
+        #                             ResultMAENorm = (np.exp(abs(Model_Search.best_score_))-LogNumber)
+
+                                    print(Target,"Pearson -", Model_Search.best_score_, "\n")
+                                    print(Target,"Pearson -", Pearson, Model_Search.best_params_ , "\n") 
+
+
+                                                    #Getting the Names of the Features Used in the Model from GridsearchCV
+                                    Selectah = Model_Search.best_estimator_.named_steps['selector']
+
+                                    # Getting SelectKBest F-scores, rounded to 2 decimal places
+                                    feature_scores = ['%.2f' % elem for elem in Selectah.scores_ ]
+
+                                    # Getting SelectKBest pvalues, rounded to 3 decimal places
+                                    feature_scores_pvalues = ['%.3f' % elem for elem in  Selectah.pvalues_ ]
+
+                                    # Geting SelectKBest feature names, whose indices are stored in 'Selectah.get_support',
+                                    # Creating a tuple of feature names, scores and pvalues, name it "features_selected_tuple"
+                                    feature_names = list(X.columns.values)
+
+                                    #list of booleans
+                                    mask = Selectah.get_support()
+                                    # The list of your K best features
+                                    New_features = [] 
+
+                                    for bool, feature in zip(mask, feature_names):
+                                        if bool:
+                                            New_features.append(feature)
+
+                                    print("Vars Used",Score,New_features, "\n")
+                                    
+                                elif FeaturePick == "RandomSearch":
+                                
+                                    #Creating Mini dataframe
+                                    RF_RSResults = pd.DataFrame(columns=['NumFeatures','FeatureList','Parameters','Scoring','CV Score'])
+                                    XGB_RSResults = pd.DataFrame(columns=['NumFeatures','FeatureList','Parameters','Scoring','CV Score'])
+                                    LR_RSResults = pd.DataFrame(columns=['NumFeatures','FeatureList','Parameters','Scoring','CV Score'])
+
+                                    #Taking out the Features that we will be working on
+                                    KeepVars2 = X.columns.tolist()
+                                    #Calculating Number of Features to be working on
+                                    numVars = len(KeepVars2)
+
+                                    #How many times it will Loop
+                                    for r in np.arange(1,3,1):
+                                        for i in (np.arange(5,numVars,5)):
+                                    #         print("r -",r,"\n","i -",i)
+                                            #Creating New X for the Loop
+                                            NewXVars = X[random.sample(KeepVars2,i)].columns.tolist()  
+                                            NewX = X[NewXVars]
+
+                                            if RunModel == "RandomForrest":
+
+                                                 #Creating a Pipeline for the Model
+                                                pipeline = Pipeline([('model', RandomForestClassifier())])
+
+                                                Model_Search = GridSearchCV(
+                                                    estimator = pipeline,
+                                                    param_grid = {'model__n_estimators':Num_Estimators,
+#                                                                   'model__max_depth':Max_Depth,
+                                                                 },
+                                                    n_jobs=-1,
+                                                    scoring=Score,
+                                                    cv=CrossVal,
+                                                    verbose=3)
+
+                                                Model_Search.fit(NewX,y)
+
+                                    #           Appending the Results back to the RSResults 
+                                                RF_RSResults = RF_RSResults.append({'NumFeatures': len(NewXVars),
+                                                                              'FeatureList': NewXVars,
+                                                                              'Parameters':  Model_Search.best_params_,
+                                                                              'Scoring': f"Score",
+                                                                              'CV Score':    Model_Search.best_score_}, ignore_index=True)
+
+                                                # Sorting the Data with NewScore
+                                                RF_RSResults = RF_RSResults.sort_values('CV Score', ascending=False)
+
+                                                RF_TopRShuffle = RF_RSResults.iloc[:1,]
+                                                
+                                                #Taking out the information of the first model
+                                                RF_Features     = RF_TopRShuffle.iloc[0]['FeatureList']   #If we are Logging the data
+                                                RF_Parameters   = RF_TopRShuffle.iloc[0]['Parameters']   
+                                                RF_Scores       = RF_TopRShuffle.iloc[0]['CV Score'] 
+
+                                            elif RunModel == "XGBoost":
+
+                                                 #Creating a Pipeline for the Model
+                                                pipeline = Pipeline([('model', xgb.XGBClassifier())])
+
+                                                Model_Search = GridSearchCV(
+                                                    estimator = pipeline,
+                                                    param_grid = {'model__n_estimators':Num_Estimators,
+                                                                  'model__max_depth':Max_Depth, },
+                                                    n_jobs=-1,
+                                                    scoring=Score,
+                                                    cv=CrossVal,
+                                                    verbose=3)
+
+                                                Model_Search.fit(NewX,y)
+
+                                    #           Appending the Results back to the RSResults 
+                                                XGB_RSResults = XGB_RSResults.append({'NumFeatures': len(NewXVars),
+                                                                              'FeatureList': NewXVars,
+                                                                              'Parameters':  Model_Search.best_params_,
+                                                                              'Scoring': f"Score",
+                                                                              'CV Score':    Model_Search.best_score_}, ignore_index=True)
+
+                                                # Sorting the Data with NewScore
+                                                XGB_RSResults = XGB_RSResults.sort_values('CV Score', ascending=False)
+
+                                                XGB_TopRShuffle = XGB_RSResults.iloc[:1,]
+                                                
+                                                #Taking out the information of the first model
+                                                XGB_Features     = XGB_TopRShuffle.iloc[0]['FeatureList']  
+                                                XGB_Parameters   = XGB_TopRShuffle.iloc[0]['Parameters']   
+                                                XGB_Scores       = XGB_TopRShuffle.iloc[0]['CV Score'] 
+                                                
+                                            elif RunModel == "LogisticRegression":
+
+                                                 # Defining the Model with Cross Validation
+                                                scores = cross_validation.cross_val_score(LogisticRegression(), NewX, y, scoring=Score, cv=5,)
+
+                                    #           Appending the Results back to the RSResults 
+                                                LR_RSResults = LR_RSResults.append({'NumFeatures': len(NewXVars),
+                                                                                    'FeatureList': NewXVars,
+                                                                                    'Parameters':  "None",
+                                                                                    'Scoring': f"Score",
+                                                                                    'CV Score':    scores.mean()}, ignore_index=True)
+
+                                                # Sorting the Data with New Score
+                                                LR_RSResults = LR_RSResults.sort_values('CV Score', ascending=False)
+
+                                                LR_TopRShuffle = LR_RSResults.iloc[:1,]
+                                                
+                                                #Deriving new feature list
+                                                LR_Features     = LR_TopRShuffle.iloc[0]['FeatureList'] 
+                                                LR_NumFeatures  = LR_TopRShuffle.iloc[0]['NumFeatures'] 
+                                                LR_Scores       = LR_TopRShuffle.iloc[0]['CV Score'] 
+                                                
+                                
+                                if FeaturePick == "RandomSearch":   
+                                    
+                                    if RunModel == "RandomForrest":
+                                        NewPars   = RF_Parameters
+                                        NFeatures = RF_Features
+                                        MetrScore = RF_Scores
+                                    elif RunModel == "XGBoost":
+                                        NewPars   = XGB_Parameters
+                                        NFeatures = XGB_Features
+                                        MetrScore = XGB_Scores
+                                    elif RunModel == "LogisticRegression":
+                                        NewPars   = "None"
+                                        NFeatures = LR_Features
+                                        MetrScore = LR_Scores
+                                        
+                                else:
+                                    NewPars = Model_Search.best_params_
+                                    NFeatures = New_features
+                                    MetrScore = ResultMetric
+                                                                            #Appending Results
+
+                                Results = Results.append({'Target': Target, 'TargetDivision': "None",
+                                                          'InitialCut': InitialCut,
+                                                          'LogData': LogData, 
+#                                                               'LogTarget': LogTarget, 
+                                                          'LogNumber': LogNumber,
+                                                          'Init Pearson': Pearson, 'MultiCol': MultiCol,
+                                                          'Z_scorecut': Z_Scoring,
+                                                          'MaxTargetValue': MaxTargetValue, 'MinTargetValue': MinTargetValue,
+                                                          'Shape_Before': NewData[Newerlist].shape,
+                                                          'Shape_After': X.shape, 
+#                                                           'Skew_Bef': Skew_Bef,
+#                                                           'Skew_Aft': Skew_Aft,
+                                                          'Model': RunModel,
+                                                          'FeaturePick': FeaturePick, 
+                                                          'CrossValidated': CrossVal,
+                                                          'SelectedPars': NewPars,
+                                                          'Metric': Score, 
+    #                                                       'Metric_Score_Log': ResultMAELog,
+                                                          'New_Features': NFeatures,
+                                                          'Metric_Score': MetrScore,
+                                                          }, ignore_index=True)
+
+                                print("Results Table - ", Results)
+
+                                if RunModel == "XGBoost":
+
+                                    print('Running mini model -', RunModel,"\n")
+
+#                                     print("X number of NA - ", X.isnull().sum().sum(),"\n")
+#                                     print("y number of NA - ", y.isnull().sum().sum(),"\n")
+
+#                                     print("X All finite - ", np.isfinite(X).all(),"\n")
+#                                     print("y All finite - ", np.isfinite(y).all(),"\n")
+
+                                    if FeaturePick == "RandomSearch":
+        
+                                        X = X[XGB_Features]
+                            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+                                        New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(XGB_Parameters)).split(", ")
+                                        Model_EstList  = re.compile("'model__n_estimators': ").sub("", str(XGB_Parameters)).split(", ")
+                                        NewList = Model_EstList[1].split("}")
+
+                                        XGB_Estimator = int(NewList[0])
+                                        XGB_MAXDepth  = int(New_maxDepList[0])
+
+                                    else:
+                                        
+                                        X = X[New_features]
+                                        
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+                                        New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(Model_Search.best_params_)).split(", ")
+                                        Model_EstList  = re.compile("'model__n_estimators': ").sub("", str(Model_Search.best_params_)).split(", ")
+
+                                        XGB_Estimator = int(Model_EstList[1])
+                                        XGB_MAXDepth  = int(New_maxDepList[0])
+
+                                    xgb_model = xgb.XGBClassifier(  
+                                                                 max_depth=XGB_MAXDepth, n_estimators=XGB_Estimator
+                                                                )
+
+                                    xgb_model.fit(X_train, y_train)
+
+                                    y_pred_train = xgb_model.predict(X_train)
+                                    y_pred_test = xgb_model.predict(X_test)
+                                    y_pred_Proba_train = xgb_model.predict_proba(X_train)
+                                    y_pred_Proba_test = xgb_model.predict_proba(X_test)
+
+                                    print('Finished Running mini model -', RunModel,"\n")
+                                    
+                                elif RunModel == "RandomForrest":
+
+                                    print('Running mini model -', RunModel,"\n")
+
+                                    if FeaturePick == "RandomSearch":
+        
+                                        X = X[RF_Features]
+                            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+#                                         New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(RF_Parameters)).split(", ")
+                                        Model_EstList  = re.compile("{'model__n_estimators': ").sub("", str(RF_Parameters)).split(", ")
+                                        NewList = Model_EstList[0].split("}")
+
+                                        RF_Estimator = int(NewList[0])
+#                                         RF_MAXDepth  = int(New_maxDepList[0])
+
+                                    else:
+
+                                        X = X[New_features]
+            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+#                                         New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(Model_Search.best_params_)).split(", ")
+                                        Model_EstList  = re.compile("{'model__n_estimators': ").sub("", str(Model_Search.best_params_)).split(", ")
+
+                                        RF_Estimator = int(Model_EstList[0])
+#                                         RF_MAXDepth  = int(New_maxDepList[0])
+
+                                    RF_model = RandomForestClassifier(  
+                                                                      n_estimators = RF_Estimator
+                                                                      )
+
+                                    RF_model.fit(X_train, y_train)
+
+                                    y_pred_train = RF_model.predict(X_train)
+                                    y_pred_test = RF_model.predict(X_test)
+                                    y_pred_Proba_train = RF_model.predict_proba(X_train)
+                                    y_pred_Proba_test = RF_model.predict_proba(X_test)
+
+                                    print('Finished Running mini model -', RunModel,"\n")
+
+                                elif RunModel == "LogisticRegression":
+
+                                    print('Running mini model -', RunModel,"\n")
+
+                                    if FeaturePick == "RandomSearch":
+        
+                                        X = X[LR_Features]
+                            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+#                                         New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(RF_Parameters)).split(", ")
+#                                         Model_EstList  = re.compile("{'model__n_estimators': ").sub("", str(RF_Parameters)).split(", ")
+#                                         NewList = Model_EstList[0].split("}")
+
+#                                         RF_Estimator = int(NewList[0])
+#                                         RF_MAXDepth  = int(New_maxDepList[0])
+
+                                    else:
+
+                                        X = X[New_features]
+            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+#                                         New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(Model_Search.best_params_)).split(", ")
+#                                         Model_EstList  = re.compile("{'model__n_estimators': ").sub("", str(Model_Search.best_params_)).split(", ")
+
+#                                         RF_Estimator = int(Model_EstList[0])
+#                                         RF_MAXDepth  = int(New_maxDepList[0])
+
+                                    LR_model = LogisticRegression(  
+#                                                                       n_estimators = RF_Estimator
+                                                                      )
+
+                                    LR_model.fit(X_train, y_train)
+
+                                    y_pred_train = LR_model.predict(X_train)
+                                    y_pred_test = LR_model.predict(X_test)
+                                    y_pred_Proba_train = LR_model.predict_proba(X_train)
+                                    y_pred_Proba_test = LR_model.predict_proba(X_test)
+
+                                    print('Finished Running mini model -', RunModel,"\n")
+                    
+                        
+                                #Creating Separate Results DataFrames for each iteration
+                                IterDic["ResultsDF_tst_{0}".format(Iter)] = pd.DataFrame({'Actual_Norm': y_test,
+                                                                                          'Predicted_Norm': y_pred_test,
+                                                                                          'Predicted_Proba_Norm': y_pred_Proba_test,
+                                                                                         })
+                                
+                                IterDic["ResultsDF_trn_{0}".format(Iter)] = pd.DataFrame({'Actual_Norm': y_train,
+                                                                                          'Predicted_Norm': y_pred_train,
+                                                                                          'Predicted_Proba_Norm': y_pred_Proba_train,
+                                                                                         })
+                                
+                                ResultsAll = ResultsAll.append({
+
+                                                'trn Accuracy Score': metrics.accuracy_score(IterDic["ResultsDF_trn_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_trn_{0}".format(Iter)]['Predicted_Norm']),
+                                                'trn Precision Score': metrics.precision_score(IterDic["ResultsDF_trn_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_trn_{0}".format(Iter)]['Predicted_Norm']),
+                                                'trn Recall Score': metrics.recall_score(IterDic["ResultsDF_trn_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_trn_{0}".format(Iter)]['Predicted_Norm']),
+
+                                                'tst Accuracy Score': metrics.accuracy_score(IterDic["ResultsDF_tst_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_tst_{0}".format(Iter)]['Predicted_Norm']),
+                                                'tst Precision Score': metrics.precision_score(IterDic["ResultsDF_tst_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_tst_{0}".format(Iter)]['Predicted_Norm']),
+                                                'tst Recall Score': metrics.recall_score(IterDic["ResultsDF_tst_{0}".format(Iter)]['Actual_Norm'],IterDic["ResultsDF_tst_{0}".format(Iter)]['Predicted_Norm']),
+
+                                                'Iter': Iter,
+                                                }, ignore_index=True)
+     
+# 
+#                                 ResultsDF_tst_Iter = pd.DataFrame({'Actual_Norm': y_test,
+#                                                               'Predicted_Norm': y_pred_test
+#                                                              })
+
+#                                 #Creating Train Output
+#                                 ResultsDF_trn_Iter = pd.DataFrame({'Actual_Norm': y_train,
+#                                                               'Predicted_Norm': y_pred_train
+#                                                              })
+
+                                
+                                                                    # Combining into a single line
+#                                 ResultsAll = ResultsAll.append({
+
+#                                                                 'trn Accuracy Score': metrics.accuracy_score(ResultsDF_trn_Iter['Actual_Norm'],ResultsDF_trn_Iter['Predicted_Norm']),
+#                                                                 'trn Precision Score': metrics.precision_score(ResultsDF_trn_Iter['Actual_Norm'],ResultsDF_trn_Iter['Predicted_Norm']),
+#                                                                 'trn Recall Score': metrics.recall_score(ResultsDF_trn_Iter['Actual_Norm'],ResultsDF_trn_Iter['Predicted_Norm']),
+
+#                                                                 'tst Accuracy Score': metrics.accuracy_score(ResultsDF_tst_Iter['Actual_Norm'],ResultsDF_tst_Iter['Predicted_Norm']),
+#                                                                 'tst Precision Score': metrics.precision_score(ResultsDF_tst_Iter['Actual_Norm'],ResultsDF_tst_Iter['Predicted_Norm']),
+#                                                                 'tst Recall Score': metrics.recall_score(ResultsDF_tst_Iter['Actual_Norm'],ResultsDF_tst_Iter['Predicted_Norm']),
+
+#                                                                 'Iter': Iter,
+#                                                                 }, ignore_index=True)
+
+                                ResultsAll['OverfitRatio_Accu'] = ResultsAll['trn Accuracy Score']/ResultsAll['tst Accuracy Score']
+                                ResultsAll['OverfitRatio_Pres'] = ResultsAll['trn Precision Score']/ResultsAll['tst Precision Score']
+                                ResultsAll['OverfitRatio_Reca'] = ResultsAll['trn Recall Score']/ResultsAll['tst Recall Score']
+
+                                print(ResultsAll)
+
+#Final Merge of Two Tables
+ResultsFinal = pd.merge(Results, ResultsAll, left_index=True, right_index=True)
+print(ResultsFinal)
+
+# Creating Date Variable for the Export
+d1 = date.today().strftime("%d%m%Y")
+current_time = datetime.now().strftime("%H%M%S")
+dateExport = d1+"_"+current_time
+
+writer = ExcelWriter(f"D:\Model_Output_{dateExport}.xlsx")
+ResultsFinal.to_excel(writer,'CompleteOutput')
+writer.save()
+
+OutputDict =   {
+                'Last_X': X,
+                'Last_y': y,
+                'OutputDataframe_tst': ResultsDF_tst,
+                'OutputDataframe_trn': ResultsDF_trn,
+                'GridResults':     Results,
+                'SeparateResults': ResultsAll,
+                'CombinedResult':  ResultsFinal
+                }
+
+print("I Have finished Calculating : --- ) ")
+
+
+
