@@ -1,0 +1,972 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Aug 09 15:10:20 2018
+
+@author: Hermy
+"""
+
+# -*- coding: utf-8 -*-
+"""
+
+1- Import libraries and Import the Train/Test Data
+2- We clean the data and transform it the way we need it
+3- We define the variables that will afterwards be used in the loops
+4- We are able to run these models and compare the results: LinearReg, XGBReg
+Steps while running:
+5- Calculating Pearson Correlation Coefficients or Running xGBoost Model or PCA to check the Important / correlated fields only and leave them
+6- To avoid Multi coliniearity we check which features have high correlation between each other and drop part of them
+7- We normalize data whenever necessary
+8- We define the independent / dependent variables: X and y (target variable).
+9- We run all the models and calculate Mean Squared Error / R^2 / Adjusted R^2 Norm / Mean Abs Error Norm
+10- Append all results form the model and export them for comparison
+
+#NOTE FOR THE READER! -> At that time I didn't need to define a function to do everything at once, I was running it 'step-by-step' and only ran the whole thing when comparing it at the end, so it was more comfortable this way. + I was still a NOOB in 2018
+
+#To See all outputs
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+#data analysis libraries 
+import numpy as np
+import pandas as pd
+
+#visualization libraries
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+
+#for Charts
+from sklearn.metrics import f1_score
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error
+
+#Normalisations
+from sklearn.preprocessing import MinMaxScaler
+
+#ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
+
+#Extra Plotting
+from sklearn.externals.six import StringIO  
+from IPython.display import Image  
+from sklearn.tree import export_graphviz
+import pydotplus
+
+#Linear Models     
+import seaborn as seabornInstance 
+from sklearn.model_selection import train_test_split 
+
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import ElasticNet
+
+from sklearn import cross_validation
+
+from sklearn import metrics
+%matplotlib inline
+
+#Importing XGBoost
+import xgboost as xgb
+
+#Importing for Heatmap
+import seaborn
+
+#Extra things
+from scipy import stats
+import math
+import re
+import random
+
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import SelectKBest,f_regression
+from sklearn.decomposition import PCA
+
+from datetime import date
+from datetime import datetime
+from pandas import ExcelWriter
+
+
+/* ----------------- */
+
+
+
+WorkTable = pd.read_csv('D:\Table.CSV', header=0) 
+WorkTable.head()
+
+
+/* ----------------- */
+
+
+# #Filling the Missing values with 0
+WorkTable = WorkTable.fillna(0)
+
+WorkTable = WorkTable[WorkTable["var"] == 1]
+WorkTable = WorkTable[WorkTable["var2"] == 0]
+
+#Leaving only Loans from 25000 to 500000
+WorkTable = WorkTable[WorkTable["Amount"] >= 25000]
+WorkTable = WorkTable[WorkTable["Amount"] <= 500000]
+
+#Checking which variables are considered as categorical variables.
+names = list(WorkTable.select_dtypes(include='object').columns.values)
+
+#Replacing Some parts of the categorical variables so that we can change it to numerical ones
+for name in names:
+    WorkTable[name]=WorkTable[name].astype(str)
+    WorkTable[name]=[col.replace(',', '') for col in WorkTable[name]]
+    WorkTable[name]=[col.replace('%', '') for col in WorkTable[name]]
+    WorkTable[name]=[col.replace('$', '') for col in WorkTable[name]]
+    WorkTable[name]=[col.replace('(', '') for col in WorkTable[name]]
+    WorkTable[name]=[col.replace(')', '') for col in WorkTable[name]]
+    WorkTable[name]=WorkTable[name].astype('float64', errors ='ignore')
+    
+#Add hoc encoding, Changing categorical variables 
+WorkTable = pd.get_dummies(WorkTable)
+
+#Running Pearson Correlation Coefficients on All variables
+# pd.options.display.float_format = '{:,.2f}'.format
+Correlations = WorkTable.corr()
+Correlations.head()
+
+
+/* ----------- */
+
+
+# def WorkTableModel(ProductList, 
+#                        ProductDivision,
+#                        Pearson_Inpu,
+
+# NumVarsXGB_Inpu
+
+#                        MultiCol_Inpu,
+
+# PlotHeatMap
+
+#                        Z_Scoring_Inpu,
+#                        LogNumber_Inpu,
+# #                        LogTarget_Inpu,
+#                        LogData_Inpu,
+#                        Score,
+#                        Models_Inpu,
+#                        FeaturePick_Inpu,
+
+# KnumFeatures_Inpu
+
+#                        CrossVal,
+#                        Num_Estimators,
+#                        Max_Depth
+#                       ):
+
+ProductList = (
+                'Product_Next6'
+                 )
+
+#Variables to Drop
+DelVars =  [            'Ordering',
+            'Ordering_1',
+            'Ordering_2',
+            'Ordering_3']
+
+ProductDivision = 6          #For Calculating Average per Month for Target
+InitialCut_Inpu = ['Pearson','XGBReg','PCA'] #'Pearson','XGBReg'
+Pearson_Inpu = [0.3]       #Initial Pearson Correlation Cut
+NumVarsXGB_Inpu = 150            #How many Top features to leave from each iterated max depth, total 3 iters
+
+MultiCol_Inpu  = [1]       #Variable with higher Pearson Corr Value then Input - dropped
+PlotHeatMap    = 'NO'             #Plots Heatmap of variables after multicol deletion, 'YES' for it to work
+Z_Scoring_Inpu = [3]         #Outlier in Target higher then Input Z_Score will be deleted
+LogNumber_Inpu = [4]         #Feature + LogNumber for Logging
+#                                          LogTarget_Inpu = ['NO','YES'],     #YES,NO
+LogData_Inpu = ['YES'] # 'YES','NO','MinMax Norm' How to adjust scales for X Features
+
+FeaturePick_Inpu = ["SelectKBest","RandomSearch"]    #SelectKBest  
+KnumFeatures_Inpu = 5               #with How many features to jump each time
+Models_Inpu = ['LinearReg']  #LinearReg, XGBReg
+
+CrossVal = 5                            #Number of Folds when Cross Validating
+Num_Estimators = np.arange(10,200,50)   #For XGBREG
+Max_Depth = np.arange(3,7,4)            #For XGBREG
+#                                          reg_lambda =                         #For XGBREG
+#                                          gamma =                              #For XGBREG
+#                                          eta = #For XGBREG
+
+Score = "neg_mean_squared_error"       #Score to Improve for GridSearchCV
+
+#Creating Empty Dataset For Results
+Results = pd.DataFrame(columns=['Product', 'ProductDivision', 'InitialCut','LogData', 
+#                                     'LogTarget', 
+                                'LogNumber', 
+                                'Init Pearson','MultiCol','Z_scorecut',
+                                'MaxTargetValue', 'MinTargetValue',
+                                'Shape_Before','Shape_After','Skew_Bef','Skew_Aft',
+                                'Model', 'FeaturePick', 'CrossValidated','SelectedPars', 'Metric',
+#                                 'Metric_Score_Log',
+                                'New_Features', 'Metric_Score'])
+
+ResultsAll = pd.DataFrame(columns=[
+                                   'trn Mean Squ Error Norm',
+#                                    'trn Mean Squ Log Error Norm',
+                                   'trn Adjusted R^2 Norm',
+                                   'trn Mean Abs Error Norm',
+
+                                   'tst Mean Squ Error Norm',
+#                                    'tst Mean Squ Log Error Norm',
+                                   'tst Adjusted R^2 Norm',
+                                   'tst Mean Abs Error Norm'
+                                  ])
+
+#Replacing Some parts of the categorical variables so that we can change it to numerical ones
+for Product in ProductList:
+    
+#     print("Modelling -",Product,"\n")
+#     print("Pearson -",Pearson,"\n")
+#     print("MultiCol -",MultiCol,"\n")
+#     print("Z_Scoring -",Z_Scoring,"\n")
+#     print("LogNumber -",LogNumber,"\n")
+#     print("LogData -",LogData,"\n")
+#     print("RunModel -",RunModel,"\n")
+#     print("FeaturePick -",FeaturePick,"\n")
+
+    #     for Pearson in [0.3,0.2]:
+    for InitialCut in InitialCut_Inpu: 
+        
+        #Defining XGB Features
+        XGBFeats = {}
+
+        if InitialCut == 'Pearson':
+            
+            for Pearson in Pearson_Inpu:   
+        #         for MultiCol in [0.8, 0.9, 0.95]:
+
+                print('Running Initial Cut -', 'with Pearson',"\n")
+
+                Data = Correlations[[Product]]
+                Data['Abs_Pearson'] = abs(Data[Product])
+
+                # Sorting the Data with Abs_Pearson
+                Data = Data.sort_values('Abs_Pearson', ascending=False)
+
+                # Renaming Name of the Index into Features
+                Data.index.name = 'Features'
+
+                print("Pearson Correlation All Table Cut - ",Pearson)
+
+                # Leaving only Features greater then Pearson
+                DataNew = Data[Data['Abs_Pearson'] >= Pearson]
+
+                # Deleting from list containing any of the Future Variables
+                NewList = [ x for x in list(DataNew.index) 
+                           if "Next" not in x ]
+
+                Newerlist = [x for x in NewList if x not in DelVars]
+
+        elif InitialCut == 'XGBReg':
+            
+            # Deleting Unnecessary Variables
+            TempData_init = WorkTable.drop(DelVars, axis=1)
+
+            columnsAll = TempData_init.columns.tolist()
+
+            # Deleting from list containing any of the Future Variables
+            columnsAll = [ x for x in columnsAll 
+                           if "Next" not in x ]
+
+            TempData_init = TempData_init[columnsAll]
+
+            X_init = TempData_init
+            y_init = WorkTable[Product]
+
+            print('Running Initial Cut -', 'with XGB Reg',"\n")
+
+            print('Creating Empty Dataset for XGB Important Features')
+            XGBSelection = pd.DataFrame(columns=['0_x','0_y','Max_Dep'])
+
+            X_train_init, X_test_init, y_train_init, y_test_init = train_test_split(X_init, y_init, test_size=0.2, random_state=0)
+
+            for dep in [5,10,20]:
+
+                print('Running Depth -', dep,"\n")
+
+                Var_dep_estimator = '_' + str(dep) + '_' + str(estimator)
+
+                xgb_model_init = xgb.XGBRegressor(  
+                                                  max_depth=dep, n_estimators=100, objective='reg:squarederror'
+                                                  )
+
+                xgb_model_init.fit(X_train_init, y_train_init)
+
+                y_pred_train_init = xgb_model_init.predict(X_train_init)
+                y_pred_test_init = xgb_model_init.predict(X_test_init)
+
+                print("Test Score ", metrics.mean_absolute_error(y_test_init,y_pred_test_init))
+                print("Train Score ", metrics.mean_absolute_error(y_train_init,y_pred_train_init))
+
+                print("Taking Out importances from the Model")
+                #importances 
+                importances = xgb_model_init.feature_importances_
+                indices = np.argsort(importances)[::-1]
+
+                column_names = list(X_train_init.columns.values)
+
+                #Creating two lists, for importance variable names and importance columns
+                a=[]
+                b=[]
+                for i in indices:
+                    a.append(importances[i])
+                    b.append(column_names[i])
+
+                df_adata = pd.DataFrame(np.mat(a).reshape(1, int(np.prod(np.mat(a).shape) / 1)).T)
+                df_bdata = pd.DataFrame(np.mat(b).reshape(1, int(np.prod(np.mat(b).shape) / 1)).T)
+
+                ImportancesOut = pd.merge(df_bdata, df_adata, left_index=True, right_index=True)
+
+                #Leaving only Top Important Variables, 100 in this case
+                ImportXGB = ImportancesOut.iloc[:NumVarsXGB_Inpu,] 
+                ImportXGB['Max_Dep'] = dep
+
+                XGBSelection = XGBSelection.append(ImportXGB)
+
+            #Deleting Duplicates from Appended Table, 0_x is the variable with names of features
+            Nodups = XGBSelection.drop_duplicates(subset='0_x', keep='first', inplace=False)
+
+            #Creating the final list for further Steps
+            Newerlist = list(Nodups['0_x'])
+
+            #Assigning a variable, so that afterwards I can Extract Important Features if I  want
+            XGBFeats["Feats_{0}".format(Product)] = Newerlist
+
+            print("List Generated")
+            
+        elif InitialCut == "PCA":
+
+            pca = PCA(0.99)
+            
+            # Deleting Unnecessary Variables
+            TempData_init = WorkTable.drop(DelVars, axis=1)
+
+            columnsAll = TempData_init.columns.tolist()
+
+
+            # Deleting from list containing any of the Future Variables
+            columnsAll = [ x for x in columnsAll 
+                           if "Next" not in x ]
+
+            TempData_init = TempData_init[columnsAll]
+
+            X_init = TempData_init
+            y_PCA = WorkTable[Product]/ProductDivision
+            
+            pca.fit(X_init)
+            pca.n_components_
+
+            X_PCA = pca.transform(X_init)
+
+            # Changing numpy.ndarray back to Dataframe so that I can use it Afterwards
+            X_PCA = pd.DataFrame(data=X_PCA,
+                             index=np.arange(1, len(X_PCA) + 1),
+                             columns=np.arange(1, pca.n_components_ + 1))
+            
+            X_PCA = X_PCA.fillna(0)
+            y_PCA = y_PCA.fillna(0)
+
+    #Continuing the Process
+
+        for MultiCol in MultiCol_Inpu:
+
+            for Z_Scoring in Z_Scoring_Inpu:
+
+                for LogNumber in LogNumber_Inpu:
+
+                    for LogData in LogData_Inpu:
+
+                        for RunModel in Models_Inpu:
+
+                            for FeaturePick in FeaturePick_Inpu:
+
+                                #To avoid Multi coliniearity we check which features have highly correlation between each other and drop part of them
+                                #Creating a df with only those features
+                                tempData = WorkTable[Newerlist]
+
+                                                                            #Deleting Correlated Features
+
+                                # Creating correlation matrix with absolute values
+                                corr_df_abs = tempData.corr().abs()
+
+                                # Select upper triangle of correlation matrix
+                                upper = corr_df_abs.where(np.triu(np.ones(corr_df_abs.shape), k=1).astype(np.bool))
+
+
+                                # Find index of feature columns with correlation greater than MultiCol
+                                to_drop = [column for column in upper.columns if any(upper[column] > MultiCol)]
+                                print("Variables to drop - ", to_drop)
+
+                                #Dropping features 
+                                tempData = tempData.drop(tempData[to_drop], axis=1)
+
+
+                                                                            #Plotting Reduced heatmap
+                                if PlotHeatMap == 'YES':
+
+                                    #Plotting the multicolliniarity chart
+                                    corr_df = tempData.corr()
+                                    print("----------- Feature Correlation Plot - Clean ------------- ")
+
+                                    # creating a mask with lower triangle of Matrix
+                                    mask = np.zeros_like(corr_df)
+                                    mask[np.triu_indices_from(mask)] = True
+
+                                    # Adjusting the size
+                                    fig, ax = plt.subplots(figsize=(20,20))         # Sample figsize in inches
+
+                                    #creating the heatmap
+                                    seaborn.heatmap(corr_df, cmap='RdYlGn_r', vmax=1.0, vmin=-1.0, mask=mask, linewidths=0.5, ax=ax)
+
+                                    #plot the Outcomes
+                                    plt.yticks(rotation=0)
+                                    plt.xticks(rotation=90)
+                                    plt.show()
+
+
+                                #Now Taking the new features 
+                                Newestlist = tempData.columns.tolist()
+                                print("After Multicol Feature Deletion, Features are -","\n",Newestlist,"\n")
+
+                                #Appending ProductName in the List
+                                Newestlist.append(Product)
+
+                                #Leaving Only Desired Variables from the Table
+                                print("Before MultiCol Feature Deletion Shape was - ", WorkTable[Newerlist].shape, "\n",
+                                      "After MultiCol Feature Deletion Shape is - ", WorkTable[Newestlist].shape, "\n",)
+                                WorkingData = WorkTable[Newestlist]
+
+                                # Filling Missing values with 0s - there shouldn't be any, but still..
+                                WorkingData = WorkingData.fillna(0)
+
+                                # Deleting Minus Profits - can be used for all the Profits except Interchanges, where we have lot of minus profits
+                                WorkingData = WorkingData[WorkingData[Product] >= 0]
+
+                                WorkingData.head()
+                                WorkingData.shape
+
+                                #Making Sure all the outliers are deleted
+                                from scipy.stats import iqr
+                                iqr = iqr(WorkingData[Product]/ProductDivision, axis=0)
+                                print("IQR is",iqr)
+
+                                #How much of the Outliers to delete, using Z_score (std away from Mean)
+
+                                WorkingData['z_score']=stats.zscore(WorkingData[Product]/ProductDivision)
+
+                                print("Deleting Outliers, Z_Score - ",Z_Scoring)
+
+                                #Deleting less then Z Score
+                                WorkingData = WorkingData[WorkingData["z_score"].abs() <= Z_Scoring]
+                                print('Reduced by Z-score Outliers', WorkingData.shape)
+
+                                MaxTargetValue = max(WorkingData[Product]/ProductDivision)
+                                MinTargetValue = min(WorkingData[Product]/ProductDivision)
+                                print('MaxTargetValue', MaxTargetValue, "\n", 'MinTargetValue', MinTargetValue)
+
+                                                                    #Plotting Histogram Initial
+#                                 print('Histogram Before Log transform',"\n")
+#                                 num_bins = 100
+#                                 n, bins, patches = plt.hist(WorkingData[Product]/ProductDivision, num_bins, facecolor='blue', alpha=0.5)
+#                                 plt.show()
+
+                                #Dropping Z Score
+                                WorkingData = WorkingData.drop(["z_score"], axis=1);
+
+
+                                                                    #Normalising the TARGET variable
+
+                                #Checking the Skewness
+                                print("Skewness Before Log is - ", (WorkingData[Product]/ProductDivision).skew())
+
+                                #For Results
+                                Skew_Bef = (WorkingData[Product]/ProductDivision).skew()
+
+#                                         if LogTarget == 'YES':
+                                if LogData == 'YES' or LogData == 'MinMax Norm':
+
+                                    WorkingData['TargetFinal'] = np.log((WorkingData[Product]/ProductDivision)+LogNumber)
+
+                                else:
+                                    WorkingData['TargetFinal'] = WorkingData[Product]/ProductDivision
+
+                                print("Skewness After Log is - ", WorkingData['TargetFinal'].skew())
+
+                                #For Results
+                                Skew_Aft = WorkingData['TargetFinal'].skew()
+
+                                #Dropping Previouse Target variable
+                                WorkingData = WorkingData.drop([Product], axis=1);
+
+                                                                        #Plotting Histogram log Transform
+                                print('Histogram After Log transform',"\n")
+                                num_bins = 100
+                                n, bins, patches = plt.hist(WorkingData['TargetFinal'], num_bins, facecolor='blue', alpha=0.5)
+                                plt.show()
+
+                                print("total number of NA - ", WorkingData.isnull().sum().sum(),"\n")
+                                print("y number of NA - ", WorkingData['TargetFinal'].isnull().sum().sum(),"\n")
+
+
+                                                                          # Running Models #
+                                                                        # Linear Regression #
+
+
+                                print("Running Models...")
+
+                                                                        # Defining X and Y
+                            
+                                # Making sure that if we Choose PCA as a Feature selector Data is not Scaled
+                                if InitialCut == 'PCA':
+                                    LogData = 'NO'
+                            
+                                if LogData == 'YES':
+                                    #Creating list of vars without ProductLog
+                                    list_of_vars = WorkingData.drop(['TargetFinal'], axis=1).columns.tolist()
+
+                                    #Assigning X, logTransforming Every variable with sqrt((x^2)+LogNumber)
+                                    X = WorkingData[list_of_vars].applymap(lambda x: np.log(math.sqrt((x**2)+LogNumber)))
+
+                                    #Renaming columns
+                                    X.columns = 'log_' + X.columns
+
+                                    #shifting the index
+                                    X.index = X.index + 1
+
+                                    #Assigning y
+                                    y = WorkingData['TargetFinal']
+
+                                elif LogData == 'MinMax Norm':
+
+                                    X_tmp_1 = WorkingData.drop(['TargetFinal'], axis=1);
+                                    y = WorkingData['TargetFinal']
+
+                                    scaler = MinMaxScaler(feature_range = (0,5))
+
+                                    scaler.fit(X_tmp_1)
+                                    X_tmp = scaler.transform(X_tmp_1)
+
+                                    # Changing numpy.ndarray back to Dataframe so that I can use it Afterwards
+                                    X = pd.DataFrame(data=X_tmp,
+                                                     index=np.arange(1, len(X_tmp_1)+1),
+                                                     columns=np.arange(1, len(X_tmp_1.columns.tolist())+1))
+
+                                    # As the Created Dataframe has 1,2,3,... etc as Names of variables we assign the names from the prev Dataframe
+                                    X.columns = X_tmp_1.columns.tolist()
+
+                                else:
+                                    X = WorkingData.drop(['TargetFinal'], axis=1);
+                                    y = WorkingData['TargetFinal']
+                                    
+                                if InitialCut == 'PCA':
+                                    
+                                    X = X_PCA
+                                    y = y_PCA
+
+                                OutputTable = {
+                                              'Last_X': X,
+                                              'Last_y': y,
+                                              }
+
+                                                                        # Defining Models
+                                
+                                if FeaturePick == "SelectKBest":
+
+                                    #Counting number of features so that we can input in SelectKBest
+                                    selectK = np.arange(1,len(X.columns.tolist()),KnumFeatures_Inpu).tolist()
+
+                                    #Appending "all", so that its [1,3,5...,"all"]
+                                    selectK.append("all")
+
+                                    if RunModel == "LinearReg":
+
+                                        print("Running - ",RunModel,"\n")
+
+                                        #Creating a Pipeline for the Model
+                                        pipeline = Pipeline(
+                                            [
+                                             ('selector',SelectKBest(f_regression)),
+                                             ('model',LinearRegression())
+                                            ]
+                                        )
+
+                                        # Gridsearch the Magnificient 
+                                        Model_Search = GridSearchCV(
+                                            estimator = pipeline,
+                                            param_grid = {'selector__k':selectK},
+                                            n_jobs=-1,
+                                            scoring=Score,
+            #                                 refit=Refit,
+                                            cv=CrossVal,
+                                            verbose=0
+                                        )
+
+                                    elif RunModel == "XGBReg":
+
+                                        print("Running - ",RunModel,"\n")
+
+                                        #Creating a Pipeline for the Model
+                                        pipeline = Pipeline(
+                                            [
+                                             ('selector',SelectKBest(f_regression)),
+                                             ('model', xgb.XGBRegressor())
+                                            ]
+                                        )
+
+                                        Model_Search = GridSearchCV(
+                                            estimator = pipeline,
+                                            param_grid = {
+                                          'selector__k':selectK, 
+                                          'model__n_estimators':Num_Estimators,
+                                          'model__max_depth':Max_Depth,  
+                                         },
+                                            n_jobs=-1,
+                                            scoring=Score,
+    #                                             refit=Refit,
+                                            cv=CrossVal,
+                                            verbose=3
+                                        )
+
+                                                                    #Fitting the Model for SelectK Method
+                                    Model_Search.fit(X,y)
+
+                                    #Taking out the Score from Gridsearch
+                                    ResultMetric = Model_Search.best_score_
+        #                             ResultMAENorm = (np.exp(abs(Model_Search.best_score_))-LogNumber)
+
+                                    print(Product,"Pearson -", Pearson,"LinReg - Metric Score",  Model_Search.best_score_, "\n")
+        #                             print(Product,"Pearson -", Pearson,"LinReg - Neg MAE in Norm", (np.exp(abs(Model_Search.best_score_))-LogNumber), "\n")
+                                    print(Product,"Pearson -", Pearson,"LinReg - Number of K",     Pearson, Model_Search.best_params_ , "\n") 
+
+
+                                                    #Getting the Names of the Features Used in the Model from GridsearchCV
+                                    Selectah = Model_Search.best_estimator_.named_steps['selector']
+
+                                    # Getting SelectKBest F-scores, rounded to 2 decimal places
+                                    feature_scores = ['%.2f' % elem for elem in Selectah.scores_ ]
+
+                                    # Getting SelectKBest pvalues, rounded to 3 decimal places
+                                    feature_scores_pvalues = ['%.3f' % elem for elem in  Selectah.pvalues_ ]
+
+                                    # Geting SelectKBest feature names, whose indices are stored in 'Selectah.get_support',
+                                    # Creating a tuple of feature names, scores and pvalues, name it "features_selected_tuple"
+                                    feature_names = list(X.columns.values)
+
+                                    #list of booleans
+                                    mask = Selectah.get_support()
+                                    # The list of your K best features
+                                    New_features = [] 
+
+                                    for bool, feature in zip(mask, feature_names):
+                                        if bool:
+                                            New_features.append(feature)
+
+                                    print("LinReg - Vars Used",Score,New_features, "\n")
+                                
+                                elif FeaturePick == "RandomSearch":
+                                
+                                    #Creating Mini dataframe
+                                    LR_RSResults = pd.DataFrame(columns=['NumFeatures','FeatureList','Parameters','Scoring','CV Score'])
+                                    XGB_RSResults = pd.DataFrame(columns=['NumFeatures','FeatureList','Parameters','Scoring','CV Score'])
+
+                                    #Taking out the Features that we will be working on
+                                    KeepVars2 = X.columns.tolist()
+                                    #Calculating Number of Features to be working on
+                                    numVars = len(KeepVars2)
+
+                                    #How many times it will Loop
+                                    for r in np.arange(1,3,1):
+                                        for i in (np.arange(5,numVars,5)):
+                                    #         print("r -",r,"\n","i -",i)
+                                            #Creating New X for the Loop
+                                            NewXVars = X[random.sample(KeepVars2,i)].columns.tolist()  
+                                            NewX = X[NewXVars]
+
+                                            if RunModel == "LinearReg":
+
+                                                # Defining the Model with Cross Validation
+                                                scores = cross_validation.cross_val_score(LinearRegression(), NewX, y, scoring=Score, cv=5,)
+
+                                    #           Appending the Results back to the RSResults 
+                                                LR_RSResults = LR_RSResults.append({'NumFeatures': len(NewXVars),
+                                                                                    'FeatureList': NewXVars,
+                                                                                    'Parameters':  "None",
+                                                                                    'Scoring': "R^2",
+                                                                                    'CV Score':    scores.mean()}, ignore_index=True)
+
+                                                # Sorting the Data with New Score
+                                                LR_RSResults = LR_RSResults.sort_values('CV Score', ascending=False)
+
+                                                LR_TopRShuffle = LR_RSResults.iloc[:1,]
+                                                
+                                                #Deriving new feature list
+                                                LR_Features     = LR_TopRShuffle.iloc[0]['FeatureList']   #If we are Logging the data
+                                                LR_NumFeatures  = LR_TopRShuffle.iloc[0]['NumFeatures']   #If we are Logging the data
+                                                LR_Scores       = LR_TopRShuffle.iloc[0]['CV Score'] 
+
+                                            elif RunModel == "XGBReg":
+
+                                                 #Creating a Pipeline for the Model
+                                                pipeline = Pipeline([('model', xgb.XGBRegressor())])
+
+                                                Model_Search = GridSearchCV(
+                                                    estimator = pipeline,
+                                                    param_grid = {'model__n_estimators':Num_Estimators,
+                                                                  'model__max_depth':Max_Depth, },
+                                                    n_jobs=-1,
+                                                    scoring=Score,
+                                                    cv=CrossVal,
+                                                    verbose=3)
+
+                                                Model_Search.fit(NewX,y)
+
+                                    #           Appending the Results back to the RSResults 
+                                                XGB_RSResults = XGB_RSResults.append({'NumFeatures': len(NewXVars),
+                                                                              'FeatureList': NewXVars,
+                                                                              'Parameters':  Model_Search.best_params_,
+                                                                              'Scoring': "MSE",
+                                                                              'CV Score':    Model_Search.best_score_}, ignore_index=True)
+
+                                                # Sorting the Data with NewScore
+                                                XGB_RSResults = XGB_RSResults.sort_values('CV Score', ascending=False)
+
+                                                XGB_TopRShuffle = XGB_RSResults.iloc[:1,]
+                                                
+                                                #Taking out the information of the first model
+                                                XGB_Features     = XGB_TopRShuffle.iloc[0]['FeatureList']   #If we are Logging the data
+                                                XGB_Parameters   = XGB_TopRShuffle.iloc[0]['Parameters']   #If we are Logging the data
+                                                XGB_Scores       = XGB_TopRShuffle.iloc[0]['CV Score'] 
+
+                                if FeaturePick == "RandomSearch":
+                                    if RunModel == "LinearReg":
+                                        NewPars   = f"NumFeatures: {LR_NumFeatures}"
+                                        NFeatures = LR_Features
+                                        MetrScore = LR_Scores
+                                    elif RunModel == "XGBReg":
+                                        NewPars   = XGB_Parameters
+                                        NFeatures = XGB_Features
+                                        MetrScore = XGB_Scores
+                                        
+                                else:
+                                    NewPars = Model_Search.best_params_
+                                    NFeatures = New_features
+                                    MetrScore = ResultMetric
+                                                                            #Appending Results
+
+                                Results = Results.append({'Product': Product, 'ProductDivision': ProductDivision,
+                                                          'InitialCut': InitialCut,
+                                                          'LogData': LogData, 
+#                                                               'LogTarget': LogTarget, 
+                                                          'LogNumber': LogNumber,
+                                                          'Init Pearson': Pearson, 'MultiCol': MultiCol,
+                                                          'Z_scorecut': Z_Scoring,
+                                                          'MaxTargetValue': MaxTargetValue, 'MinTargetValue': MinTargetValue,
+                                                          'Shape_Before': WorkTable[Newerlist].shape,
+                                                          'Shape_After': WorkingData.shape, 
+                                                          'Skew_Bef': Skew_Bef,'Skew_Aft': Skew_Aft,
+                                                          'Model': RunModel,
+                                                          'FeaturePick': FeaturePick, 
+                                                          'CrossValidated': CrossVal,
+                                                          'SelectedPars': NewPars,
+                                                          'Metric': Score, 
+    #                                                       'Metric_Score_Log': ResultMAELog,
+                                                          'New_Features': NFeatures,
+                                                          'Metric_Score': MetrScore,
+                                                          }, ignore_index=True)
+
+                                print("Results Table - ", Results)
+
+
+
+                                                                #Running the Model with Chosen Parameters 
+
+                                if RunModel == "LinearReg":
+                                    
+                                    print('Running mini model -', RunModel,"\n")
+
+#                                         print("X number of NA - ", X.isnull().sum().sum(),"\n")
+#                                         print("y number of NA - ", y.isnull().sum().sum(),"\n")
+
+#                                         print("X All finite - ", np.isfinite(X).all(),"\n")
+#                                         print("y All finite - ", np.isfinite(y).all(),"\n")
+
+#                                     writer = ExcelWriter(f"D:\X_test.xlsx")
+#                                     X.to_excel(writer,'CompleteOutput')
+#                                     writer.save()
+
+#                                     writer = ExcelWriter(f"D:\y_test.xlsx")
+#                                     y.to_excel(writer,'CompleteOutput')
+#                                     writer.save()
+                                    if FeaturePick == "RandomSearch":
+        
+                                        X = X[LR_Features]
+            
+                                    else:
+                    
+                                        X = X[New_features]
+                                        
+                                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                    regressor = LinearRegression()  
+                                    regressor.fit(X_train, y_train) #training the algorithm
+
+                                    y_pred_train = regressor.predict(X_train)
+                                    y_pred_test = regressor.predict(X_test)
+
+                                    print('Finished Running mini model -', RunModel,"\n")
+
+                                elif RunModel == "XGBReg":
+
+                                    print('Running mini model -', RunModel,"\n")
+
+#                                     print("X number of NA - ", X.isnull().sum().sum(),"\n")
+#                                     print("y number of NA - ", y.isnull().sum().sum(),"\n")
+
+#                                     print("X All finite - ", np.isfinite(X).all(),"\n")
+#                                     print("y All finite - ", np.isfinite(y).all(),"\n")
+
+                                    if FeaturePick == "RandomSearch":
+        
+                                        X = X[XGB_Features]
+                            
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+                                        New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(XGB_Parameters)).split(", ")
+                                        Model_EstList  = re.compile("'model__n_estimators': ").sub("", str(XGB_Parameters)).split(", ")
+                                        NewList = Model_EstList[1].split("}")
+
+                                        XGB_Estimator = int(NewList[0])
+                                        XGB_MAXDepth  = int(New_maxDepList[0])
+
+                                    else:
+
+                                        X = X[New_features]
+                                        
+                                        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+                                        #Taking the chosen Features from Gridsearch
+                                        New_maxDepList = re.compile("{'model__max_depth': ").sub("", str(Model_Search.best_params_)).split(", ")
+                                        Model_EstList  = re.compile("'model__n_estimators': ").sub("", str(Model_Search.best_params_)).split(", ")
+
+                                        XGB_Estimator = int(Model_EstList[1])
+                                        XGB_MAXDepth  = int(New_maxDepList[0])
+
+                                    xgb_model = xgb.XGBRegressor(  
+                                                                 max_depth=XGB_MAXDepth, n_estimators=XGB_Estimator, objective='reg:squarederror'
+                                                                )
+
+                                    xgb_model.fit(X_train, y_train)
+
+                                    y_pred_train = xgb_model.predict(X_train)
+                                    y_pred_test = xgb_model.predict(X_test)
+
+                                    print('Finished Running mini model -', RunModel,"\n")
+
+                                if LogData == 'YES' or LogData == 'MinMax Norm':
+
+                                    #Creating Test Output
+                                    ResultsDF_tst = pd.DataFrame({'Actual_Log': y_test, 
+                                                                  'Predicted_Log': y_pred_test, 
+                                                                  'Actual_Norm': np.exp(abs(y_test))-LogNumber,
+                                                                  'Predicted_Norm': np.exp(abs(y_pred_test))-LogNumber,
+                                                                  'Difference': (np.exp(abs(y_pred_test))-LogNumber) - (np.exp(abs(y_test))-LogNumber),
+                                                                  'Difference_abs': abs((np.exp(abs(y_pred_test))-LogNumber) - (np.exp(abs(y_test))-LogNumber))
+                                                                 })
+
+                                    #Creating Train Output
+                                    ResultsDF_trn = pd.DataFrame({'Actual_Log': y_train, 
+                                                                  'Predicted_Log': y_pred_train, 
+                                                                  'Actual_Norm': np.exp(abs(y_train))-LogNumber,
+                                                                  'Predicted_Norm': np.exp(abs(y_pred_train))-LogNumber,
+                                                                  'Difference': (np.exp(abs(y_pred_train))-LogNumber) - (np.exp(abs(y_train))-LogNumber),
+                                                                  'Difference_abs': abs((np.exp(abs(y_pred_train))-LogNumber) - (np.exp(abs(y_train))-LogNumber))
+                                                                 })
+
+                                else:
+
+                                    #Creating Test Output
+                                    ResultsDF_tst = pd.DataFrame({
+                                                                  'Actual_Log': y_test, 
+                                                                  'Predicted_Log': y_pred_test, 
+                                                                  'Actual_Norm': y_test,
+                                                                  'Predicted_Norm': y_pred_test,
+                                                                  'Difference': y_pred_test - y_test,
+                                                                  'Difference_abs': abs(y_pred_test - y_test)
+                                                                 })
+
+                                    #Creating Train Output
+                                    ResultsDF_trn = pd.DataFrame({'Actual_Log': y_train, 
+                                                                  'Predicted_Log': y_pred_train, 
+                                                                  'Actual_Norm': y_train,
+                                                                  'Predicted_Norm': y_pred_train,
+                                                                  'Difference': y_pred_train - y_train,
+                                                                  'Difference_abs': abs(y_pred_train - y_train)
+                                                                 })
+
+                                #Calculating New Metrics                                
+                                R_Squ_Norm_tst = metrics.r2_score(ResultsDF_tst['Actual_Norm'],ResultsDF_tst['Predicted_Norm'])
+                                R_Squ_Adj_Norm_tst = 1 - (1-(R_Squ_Norm_tst))*((len(X)-1)/(len(X)-len(X.columns.tolist())-1))
+
+                                R_Squ_Norm_trn = metrics.r2_score(ResultsDF_trn['Actual_Norm'],ResultsDF_trn['Predicted_Norm'])
+                                R_Squ_Adj_Norm_trn = 1 - (1-(R_Squ_Norm_trn))*((len(X)-1)/(len(X)-len(X.columns.tolist())-1))
+
+                                                                    # Combining into a single line
+                                ResultsAll = ResultsAll.append({
+
+                                                                'trn Mean Squ Error Norm': metrics.mean_squared_error(ResultsDF_trn['Actual_Norm'],ResultsDF_trn['Predicted_Norm']),
+#                                                                 'trn Mean Squ Log Error Norm': metrics.mean_squared_log_error(ResultsDF_trn['Actual_Norm'],ResultsDF_trn['Predicted_Norm']),
+#                                                                 'R^2 Norm': R_Squ_Norm,
+                                                                'trn Adjusted R^2 Norm': R_Squ_Adj_Norm_trn,
+                                                                'trn Mean Abs Error Norm': metrics.mean_absolute_error(ResultsDF_trn['Actual_Norm'],ResultsDF_trn['Predicted_Norm']),
+
+                                                                'tst Mean Squ Error Norm': metrics.mean_squared_error(ResultsDF_tst['Actual_Norm'],ResultsDF_tst['Predicted_Norm']),
+#                                                                 'tst Mean Squ Log Error Norm': metrics.mean_squared_log_error(ResultsDF_tst['Actual_Norm'],ResultsDF_tst['Predicted_Norm']),
+#                                                                 'R^2 Norm': R_Squ_Norm,
+                                                                'tst Adjusted R^2 Norm': R_Squ_Adj_Norm_tst,
+                                                                'tst Mean Abs Error Norm': metrics.mean_absolute_error(ResultsDF_tst['Actual_Norm'],ResultsDF_tst['Predicted_Norm']),
+
+                                                                }, ignore_index=True)
+
+                                ResultsAll['OverfitRatio_MAE'] = ResultsAll['trn Mean Abs Error Norm']/ResultsAll['tst Mean Abs Error Norm']
+                                ResultsAll['OverfitRatio_R^2'] = ResultsAll['trn Adjusted R^2 Norm']/ResultsAll['tst Adjusted R^2 Norm']
+
+                                print(ResultsAll)
+
+#Final Merge of Two Tables
+ResultsFinal = pd.merge(Results, ResultsAll, left_index=True, right_index=True)
+print(ResultsFinal)
+
+# Creating Date Variable for the Export
+d1 = date.today().strftime("%d%m%Y")
+current_time = datetime.now().strftime("%H%M%S")
+dateExport = d1+"_"+current_time
+
+writer = ExcelWriter(f"D:\Model_Output_{dateExport}.xlsx")
+ResultsFinal.to_excel(writer,'CompleteOutput')
+writer.save()
+
+OutputDict =   {
+                'Last_X': X,
+                'Last_y': y,
+                'OutputDataframe_tst': ResultsDF_tst,
+                'OutputDataframe_trn': ResultsDF_trn,
+                'GridResults':     Results,
+                'SeparateResults': ResultsAll,
+                'CombinedResult':  ResultsFinal
+                }
+
+print("I Have finished Calculating : --- ) ")
+
+#     return OutputDict, OutputTable;
+
